@@ -328,7 +328,7 @@ id_for_images = 0
 async def get_content_photo(message: types.Message):
     global id_for_images
     id_for_images = message.message_id
-    await bot.download_file_by_id(message.photo[-1].file_id, 'content/content_photo_{}.jpg'.format(id_for_images))
+    await bot.download_file_by_id(message.photo[-1].file_id, 'content_photo_{}.jpg'.format(id_for_images))
     # await bot.send_photo(message.chat.id, message.photo[-1].file_id)
     await message.answer("Good! So, now a style photo")
     await WaitingPhotos.waiting_for_style_photo.set()
@@ -338,28 +338,28 @@ async def get_content_photo(message: types.Message):
                     state=WaitingPhotos.waiting_for_style_photo)
 async def get_style_photo(message: types.Message):
     global id_for_images
-    await bot.download_file_by_id(message.photo[-1].file_id, 'style/style_photo_{}.jpg'.format(id_for_images))
+    await bot.download_file_by_id(message.photo[-1].file_id, 'style_photo_{}.jpg'.format(id_for_images))
     await message.answer("Yea! Wait for a result")
     await create_simple_image(message)
 
 
 async def create_simple_image(message: types.Message):
     global id_for_images
-    feature_image = im_to_tensor(Image.open('content/content_photo_{}.jpg'.format(id_for_images)))
-    style_image = im_to_tensor(Image.open('style/style_photo_{}.jpg'.format(id_for_images)))
+    feature_image = im_to_tensor(Image.open('content_photo_{}.jpg'.format(id_for_images)))
+    style_image = im_to_tensor(Image.open('style_photo_{}.jpg'.format(id_for_images)))
 
     input_image = feature_image.clone()
     output_simple = run_style_transfer(cnn, cnn_normalization_mean, cnn_normalization_std,
                                        feature_image, style_image, input_image, num_steps=100,
                                        style_weight=100000, content_weight=1)
-    tensor_to_im(output_simple).save('saved/saved_{}.jpg'.format(id_for_images), 'JPEG')
+    tensor_to_im(output_simple).save('saved_{}.jpg'.format(id_for_images), 'JPEG')
 
     await send_created_image(message)
 
 
 async def send_created_image(message: types.Message):
     global id_for_images
-    await message.answer_photo(photo=types.InputFile('saved/saved_{}.jpg'.format(id_for_images)))
+    await message.answer_photo(photo=types.InputFile('saved_{}.jpg'.format(id_for_images)))
 
 
 @dp.message_handler(commands=['gog'])
