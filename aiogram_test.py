@@ -76,40 +76,6 @@ class StyleLoss(nn.Module):
         return input
 
 
-class StyleLossNear(nn.Module):
-    def __init__(self, targets_1, targets_2):
-        super(StyleLossNear, self).__init__()
-        self.target_first = gram_matrix(targets_1).detach()
-        self.target_second = gram_matrix(targets_2).detach()
-        self.loss = 0.5 * F.mse_loss(self.target_first, self.target_first) + \
-                    0.5 * F.mse_loss(self.target_second, self.target_second)
-
-    def forward(self, input, alpha=0.5):
-        n1 = int(input.shape[2] / 2)
-        input1 = input[:, :, :, :n1]
-        input2 = input[:, :, :, n1:]
-        G1 = gram_matrix(input1)
-        G2 = gram_matrix(input2)
-        self.loss = alpha * F.mse_loss(G1, self.target_first) + \
-                    (1 - alpha) * F.mse_loss(G2, self.target_second)
-        return input
-
-
-class StyleLossBoth(nn.Module):
-    def __init__(self, targets_1, targets_2):
-        super(StyleLossBoth, self).__init__()
-        self.target_first = gram_matrix(targets_1).detach()
-        self.target_second = gram_matrix(targets_2).detach()
-        self.loss = 0.5 * F.mse_loss(self.target_first, self.target_first) + \
-                    0.5 * F.mse_loss(self.target_second, self.target_second)
-
-    def forward(self, input, alpha=0.5):
-        G = gram_matrix(input)
-        self.loss = alpha * F.mse_loss(G, self.target_first) + \
-                    (1 - alpha) * F.mse_loss(G, self.target_second)
-        return input
-
-
 class Normalization(nn.Module):
     def __init__(self, mean, std):
         super(Normalization, self).__init__()
@@ -158,30 +124,14 @@ def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
             content_losses.append(content_loss)
 
         if name in style_layers:
-            if style == 'simple':
-                target_feature = model(style_img).detach()
-                style_loss = StyleLoss(target_feature)
-            elif style == 'near':
-                target_feature_1, target_feature_2 = model(style_img[0]).detach(), model(style_img[1]).detach()
-                style_loss = StyleLossNear(target_feature_1, target_feature_2)
-            elif style == 'both':
-                target_feature_1, target_feature_2 = model(style_img[0]).detach(), model(style_img[1]).detach()
-                style_loss = StyleLossBoth(target_feature_1, target_feature_2)
-            else:
-                raise RuntimeError('Unrecognized style type: {}'.format(style))
+            target_feature = model(style_img).detach()
+            style_loss = StyleLoss(target_feature)
             model.add_module("style_loss_{}".format(i), style_loss)
             style_losses.append(style_loss)
 
     for i in range(len(model) - 1, -1, -1):
-        if style == 'simple':
-            if isinstance(model[i], ContentLoss) or isinstance(model[i], StyleLoss):
-                break
-        elif style == 'near':
-            if isinstance(model[i], ContentLoss) or isinstance(model[i], StyleLossNear):
-                break
-        elif style == 'both':
-            if isinstance(model[i], ContentLoss) or isinstance(model[i], StyleLossBoth):
-                break
+        if isinstance(model[i], ContentLoss) or isinstance(model[i], StyleLoss):
+            break
         else:
             raise RuntimeError('Unrecognized style type: {}'.format(style))
 
@@ -198,14 +148,11 @@ def get_input_optimizer(input_img):
 def run_style_transfer(cnn, normalization_mean, normalization_std,
                        content_img, style_img, input_img, num_steps=500,
                        style_weight=100000, content_weight=1, style='simple'):
-    """Run the style transfer."""
-    # print('Building the style transfer model..')
     model, style_losses, content_losses = get_style_model_and_losses(cnn,
                                                                      normalization_mean, normalization_std, style_img,
                                                                      content_img, style=style)
     optimizer = get_input_optimizer(input_img)
 
-    # print('Optimizing..')
     run = [0]
     while run[0] <= num_steps:
 
@@ -231,11 +178,6 @@ def run_style_transfer(cnn, normalization_mean, normalization_std,
             loss.backward()
 
             run[0] += 1
-            # if run[0] % 50 == 0:
-                # print("run {}:".format(run))
-                # print('Style Loss : {:4f} Content Loss: {:4f}'.format(
-                #     style_score.item(), content_score.item()))
-                # print()
 
             return style_score + content_score
 
@@ -278,26 +220,6 @@ async def send_welcome(message: types.Message):
     poll_keyboard.add(types.KeyboardButton(text='/both'))
     await message.answer("Hi!\nI'm VolodinBot!\nHere you can use style transfer machine.\n"
                          "For it you have a command /simple", reply_markup=poll_keyboard)
-                         
-#         await message.answer("Hi!\nI'm VolodinBot!\nHere you can use style transfer machine.\n"
-#                          "For it you have 3 commands:\n"
-#                          "/simple, /near and /both", reply_markup=poll_keyboard)
-
-
-# @dp.message_handler(commands=['simple', 'near', 'both'])
-# async def send_welcome(message: types.Message):
-#     command_style = message.text[1:]
-#     input_image = feature_image.clone()
-#     if command_style == 'simple':
-#         images_for_style = style_image
-#     else:
-#         images_for_style = style_images
-#     output_simple = run_style_transfer(cnn, cnn_normalization_mean, cnn_normalization_std,
-#                                        feature_image, images_for_style, input_image, num_steps=10,
-#                                        style_weight=100000, content_weight=1, style=command_style)
-#     tensor_to_im(output_simple).save('saved.jpg', 'JPEG')
-#
-#     await message.answer_photo(photo=types.InputFile('saved.jpg'))
 
 
 class WaitingPhotos(StatesGroup):
@@ -306,12 +228,6 @@ class WaitingPhotos(StatesGroup):
     waiting_for_first_content_photo = State()
     waiting_for_second_content_photo = State()
     images_id = 0
-
-    def set_images_id(self, id):
-        self.images_id = id
-
-    def get_images_id(self):
-        return self.images_id
 
 
 @dp.message_handler(commands=['simple'], state='*')
@@ -329,7 +245,6 @@ async def get_content_photo(message: types.Message):
     global id_for_images
     id_for_images = message.message_id
     await bot.download_file_by_id(message.photo[-1].file_id, 'content_photo_{}.jpg'.format(id_for_images))
-    # await bot.send_photo(message.chat.id, message.photo[-1].file_id)
     await message.answer("Good! So, now a style photo")
     await WaitingPhotos.waiting_for_style_photo.set()
 
@@ -360,12 +275,6 @@ async def create_simple_image(message: types.Message):
 async def send_created_image(message: types.Message):
     global id_for_images
     await message.answer_photo(photo=types.InputFile('saved_{}.jpg'.format(id_for_images)))
-
-
-@dp.message_handler(commands=['gog'])
-async def send_welcome(message: types.Message):
-    my_answer_img = Image.open('gog.jpg')
-    await message.answer_photo(photo=types.InputFile('gog.jpg'))
 
 
 @dp.message_handler()
