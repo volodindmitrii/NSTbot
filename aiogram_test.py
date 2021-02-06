@@ -216,8 +216,6 @@ dp = Dispatcher(bot, storage=MemoryStorage())
 async def send_welcome(message: types.Message):
     poll_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     poll_keyboard.add(types.KeyboardButton(text='/simple'))
-    poll_keyboard.add(types.KeyboardButton(text='/near'))
-    poll_keyboard.add(types.KeyboardButton(text='/both'))
     await message.answer("Hi!\nI'm VolodinBot!\nHere you can use style transfer machine.\n"
                          "For it you have a command /simple", reply_markup=poll_keyboard)
 
